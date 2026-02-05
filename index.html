@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>M3U8 字幕下載器 v5.2 Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Noto Sans TC', sans-serif; }
+        .log-box {
+            font-family: 'Courier New', Courier, monospace;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .log-box::-webkit-scrollbar { width: 8px; }
+        .log-box::-webkit-scrollbar-track { background: #1f2937; }
+        .log-box::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; }
+
+        .highlight-next-step {
+            animation: pulse-border 2s infinite;
+            background-color: #eff6ff; 
+        }
+        @keyframes pulse-border {
+            0% { border-color: #e5e7eb; box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4); }
+            50% { border-color: #3b82f6; box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.4); }
+            100% { border-color: #e5e7eb; box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4); }
+        }
+        
+        .code-block {
+            background-color: #012456; /* PowerShell Blue */
+            color: #ffffff;
+            font-family: Consolas, 'Courier New', monospace;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            white-space: pre;
+            font-size: 0.8rem;
+            border: 2px solid #3b82f6;
+        }
+        
+        /* 針對右側說明的樣式優化 */
+        .instruction-card {
+            background-color: white;
+            border-radius: 0.75rem;
+            padding: 1rem;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            margin-bottom: 1rem;
+        }
+        .instruction-title {
+            font-weight: 700;
+            color: #1e40af;
+            font-size: 0.875rem;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .instruction-step {
+            display: flex;
+            gap: 0.5rem;
+            font-size: 0.75rem;
+            color: #4b5563;
+            margin-bottom: 0.5rem;
+            line-height: 1.4;
+        }
+        .step-num {
+            background-color: #dbeafe;
+            color: #1e40af;
+            width: 1.25rem;
+            height: 1.25rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 9999px;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen flex flex-col font-sans text-slate-900">
+
+    <!-- Main Content Wrapper -->
+    <div class="flex-grow flex items-start justify-center p-4 md:py-10">
+        <div class="bg-white w-full max-w-7xl rounded-xl shadow-xl overflow-hidden flex flex-col md:flex-row">
+            
+            <!-- 左側：主要操作區 -->
+            <div class="w-full md:w-7/12 p-6 md:p-8 space-y-5 flex flex-col">
+                <div class="border-b pb-4 mb-2">
+                    <h1 class="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                        <span class="text-3xl">🎬</span> M3U8 字幕下載器 <span class="text-xs bg-teal-600 text-white px-2 py-1 rounded-full">v5.2 Pro</span>
+                    </h1>
+                    <p class="text-gray-500 text-sm mt-1">支援動態密鑰混合技術 + User-Agent 偽裝</p>
+                </div>
+
+                <div class="space-y-4">
+                    <!-- 檔名 -->
+                    <div class="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                        <label class="block text-gray-700 font-bold mb-1 text-sm">檔案名稱 (建議填寫)</label>
+                        <div class="flex gap-2">
+                            <input type="text" id="filenameInput" placeholder="例如：CH1_課程介紹" class="flex-1 px-3 py-2 rounded border border-gray-300 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm">
+                            <button onclick="pasteTitle()" class="whitespace-nowrap bg-white border border-gray-300 hover:bg-gray-100 text-gray-700 px-3 py-2 rounded text-xs font-bold transition">📋 貼上</button>
+                        </div>
+                    </div>
+
+                    <!-- Step 1: Base URL -->
+                    <div class="bg-blue-50 p-4 rounded-lg border border-blue-200 transition-all duration-300" id="step1Box">
+                        <label class="block text-blue-900 font-bold mb-2 text-sm flex items-center gap-2">
+                            <span class="bg-blue-600 text-white w-5 h-5 rounded-full flex items-center justify-center text-xs">1</span>
+                            第一步：貼上原始連結 (Request URL)
+                        </label>
+                        <input type="text" id="baseUrlInput" placeholder="Network > Headers > Request URL (如果是相對路徑則必填)" class="w-full px-3 py-2 rounded border border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs text-gray-600 font-mono shadow-sm">
+                        <div id="baseUrlMsg" class="text-[10px] mt-1 h-4 transition-all"><span class="text-blue-400">* 若內容包含完整網址可略過。</span></div>
+                    </div>
+
+                    <!-- Step 2: User-Agent (Fixed) -->
+                    <div class="bg-indigo-50 p-4 rounded-lg border border-indigo-200 transition-all duration-300" id="step2Box">
+                        <label class="block text-indigo-900 font-bold mb-2 text-sm flex items-center gap-2 justify-between">
+                            <div class="flex items-center gap-2">
+                                <span class="bg-indigo-600 text-white w-5 h-5 rounded-full flex items-center justify-center text-xs">2</span>
+                                <span>第二步：User-Agent (瀏覽器指紋)</span>
+                            </div>
+                            <span class="text-[10px] text-green-600 bg-white px-2 py-0.5 rounded border border-green-200 font-bold">已預設完成</span>
+                        </label>
+                        <input type="text" id="uaInput" value="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36" placeholder="User-Agent 字串" class="w-full px-3 py-2 rounded border border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs text-gray-600 font-mono shadow-sm">
+                        <div class="text-[10px] mt-1 text-indigo-400">* 已預設為 Chrome 144 版本。除非失效，否則無需更動。</div>
+                    </div>
+
+                    <!-- Step 3: Content -->
+                    <div class="p-4 rounded-lg border border-gray-200 transition-all duration-300" id="step3Box">
+                        <label class="block text-gray-700 font-bold mb-2 text-sm flex justify-between items-center">
+                            <div class="flex items-center gap-2">
+                                <span class="bg-gray-600 text-white w-5 h-5 rounded-full flex items-center justify-center text-xs" id="step3Badge">3</span>
+                                <span>第三步：貼上字幕內容</span>
+                            </div>
+                            <span class="text-xs font-normal text-gray-400">Response / Preview</span>
+                        </label>
+                        <textarea id="contentInput" rows="5" placeholder="請貼上字幕列表內容..." class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-purple-500 transition text-xs font-mono bg-gray-50"></textarea>
+                        <div class="flex justify-between items-center mt-1">
+                            <p class="text-xs text-gray-500 font-medium" id="linkCountText">等待輸入...</p>
+                            <button onclick="clearInput()" class="text-xs text-red-400 hover:text-red-600 font-bold px-2 py-1 rounded hover:bg-red-50 border border-transparent hover:border-red-200 transition">🗑️ 全部清空重來</button>
+                        </div>
+                    </div>
+
+                    <!-- 下載按鈕 -->
+                    <button id="startBtn" onclick="processInputAndStart()" class="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-3 px-6 rounded-lg transition duration-200 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 group">
+                        <span class="group-hover:scale-110 transition-transform">🚀</span> 解析並下載
+                    </button>
+                </div>
+
+                <!-- 進度條 -->
+                <div id="progressContainer" class="hidden space-y-1 pt-2">
+                    <div class="flex justify-between text-xs font-medium text-gray-600">
+                        <span id="statusText">準備中...</span>
+                        <span id="counterText">0%</span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                        <div id="progressBar" class="bg-blue-500 h-2 rounded-full w-0 transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                </div>
+
+                <!-- Log 區 (加高版) -->
+                <div class="bg-slate-900 text-green-400 p-3 rounded-lg h-96 overflow-y-auto text-xs log-box shadow-inner border border-slate-700 flex-grow" id="logBox">
+                    <span class="text-gray-500">系統準備就緒...</span>
+                </div>
+            </div>
+
+            <!-- 右側：教學與資訊區 -->
+            <div class="w-full md:w-5/12 bg-slate-50 border-l border-slate-200 p-6 flex flex-col gap-4">
+                
+                <!-- 救援模式區塊 (動態顯示) -->
+                <div id="rescueContainer" class="hidden bg-amber-50 border-2 border-amber-400 rounded-xl p-4 shadow-lg animate-pulse ring-4 ring-amber-100 mb-2">
+                    <div class="flex items-center gap-2 border-b border-amber-200 pb-2 mb-2">
+                        <span class="text-2xl">🛡️</span>
+                        <div>
+                            <h3 class="font-bold text-amber-900">安全阻擋偵測</h3>
+                            <p class="text-[10px] text-amber-700">瀏覽器無法直接下載，請使用下方指令 (無痛靜默版)</p>
+                        </div>
+                    </div>
+                    
+                    <div class="space-y-3">
+                        <div class="bg-white p-3 rounded border border-amber-200 text-xs text-amber-800">
+                            <strong class="block mb-1">📝 簡單 3 步驟：</strong>
+                            1. 點擊「複製指令」。<br>
+                            2. 開啟藍色的 PowerShell。<br>
+                            3. 貼上指令並執行。<br>
+                            <span class="text-green-600 font-bold block mt-1">✅ 檔案將自動存入您的下載資料夾。</span>
+                        </div>
+
+                        <div class="relative">
+                            <textarea id="rescueScript" class="code-block w-full h-48 text-[10px]" readonly onclick="this.select()"></textarea>
+                            <button onclick="copyRescueScript()" class="absolute top-2 right-2 bg-white text-amber-800 text-xs font-bold px-3 py-1 rounded shadow hover:bg-gray-100 border border-amber-200">
+                                複製指令
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 整合說明區 -->
+                <div class="space-y-4">
+                    
+                    <!-- 書籤神器 -->
+                    <div class="instruction-card border-purple-200 bg-purple-50/50">
+                        <h3 class="font-bold text-purple-800 text-sm mb-2 flex items-center gap-2">
+                            ⚡ 快速抓檔名神器
+                        </h3>
+                        <p class="text-xs text-gray-500 mb-2">
+                            將下方按鈕<b>拖曳</b>到您的瀏覽器「書籤列」。<br>
+                            以後在影片頁面點一下該書籤，就會自動複製網頁標題！
+                        </p>
+                        <div class="flex justify-center mt-2">
+                            <a 
+                                href="javascript:(function(){var t=document.title.replace(/[\/\\:*?&quot;<>|]/g,'_');navigator.clipboard.writeText(t).then(function(){alert('已複製標題：\n'+t);}).catch(function(){prompt('請手動複製：',t);});})();"
+                                class="bg-white hover:bg-purple-100 text-purple-700 text-xs font-bold py-2 px-4 rounded-full border border-purple-300 cursor-move flex items-center gap-1 transition select-none shadow-sm"
+                                title="拖曳我到書籤列"
+                                onclick="alert('請將此按鈕「拖曳」到瀏覽器的書籤列上，而不是直接點擊喔！');return false;"
+                            >
+                                <span>🔖</span> 複製本頁標題 (拖曳我)
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- 簡易模式說明 -->
+                    <div class="instruction-card border-green-200 bg-green-50/50">
+                        <h3 class="font-bold text-green-800 text-sm mb-2 flex items-center gap-2">
+                            🚀 簡易模式 (已預設 UA)
+                        </h3>
+                        <p class="text-xs text-gray-600 leading-relaxed">
+                            本版本已為您預設好 User-Agent。若網站無特殊加密，您只需填寫 <strong>「3. 字幕內容」</strong> 即可一鍵下載。
+                        </p>
+                    </div>
+
+                    <!-- 如何找到 Request URL -->
+                    <div class="instruction-card">
+                        <h3 class="instruction-title">
+                            <span class="text-xl">🎯</span> 如何找到正確的 Request URL ?
+                        </h3>
+                        <div class="instruction-step">
+                            <span class="step-num">1</span>
+                            <p>點擊 Network 列表中的字幕檔 (那個內容有一堆 .vtt 的檔案)。</p>
+                        </div>
+                        <div class="instruction-step">
+                            <span class="step-num">2</span>
+                            <p>看右側面板的上方分頁，點擊 <strong>[Headers]</strong>。</p>
+                        </div>
+                        <div class="instruction-step">
+                            <span class="step-num">3</span>
+                            <p>找到 <strong>Request URL</strong>。複製該連結（如果是相對路徑時，這步必填）。</p>
+                        </div>
+                    </div>
+
+                    <!-- 操作流程 / 如何找內容 -->
+                    <div class="instruction-card">
+                        <h3 class="instruction-title">
+                            <span class="text-xl">📄</span> 如何找到字幕內容 ?
+                        </h3>
+                        <div class="instruction-step">
+                            <span class="step-num">1</span>
+                            <p>在 Network 搜尋 <code>m3u8</code> 或 <code>vtt</code>。</p>
+                        </div>
+                        <div class="instruction-step">
+                            <span class="step-num">2</span>
+                            <p>找到 Response 裡有一堆 .vtt 檔名的檔案。</p>
+                        </div>
+                        <div class="instruction-step">
+                            <span class="step-num">3</span>
+                            <p>複製該內容貼到左側的「3. 字幕內容」後點擊下載。</p>
+                        </div>
+                    </div>
+
+                    <!-- 技術原理 -->
+                    <div class="bg-amber-50 p-3 rounded-lg border border-amber-100 text-[10px] text-amber-800 leading-relaxed">
+                        <strong class="block mb-1">🛠️ 關於 User-Agent 的作用</strong>
+                        User-Agent 是告訴網站「你是誰」。某些網站 (如 Hotmart) 會檢查這個指紋來防止非瀏覽器的下載行為。本工具已預設為主流 Chrome 指紋以提升成功率。
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-slate-200 mt-auto py-6">
+        <div class="max-w-7xl mx-auto px-4 text-center">
+            <p class="text-slate-500 text-sm">© <span id="year"></span> <a href="https://huobest.com/" target="_blank" rel="noopener noreferrer" class="text-indigo-600 hover:underline">霍家私塾</a>. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script>
+        document.getElementById('year').textContent = new Date().getFullYear();
+
+        const logBox = document.getElementById('logBox');
+        const contentInput = document.getElementById('contentInput');
+        const baseUrlInput = document.getElementById('baseUrlInput');
+        const baseUrlMsg = document.getElementById('baseUrlMsg');
+        const uaInput = document.getElementById('uaInput');
+        const filenameInput = document.getElementById('filenameInput');
+        const linkCountText = document.getElementById('linkCountText');
+        const startBtn = document.getElementById('startBtn');
+        const progressBar = document.getElementById('progressBar');
+        const progressContainer = document.getElementById('progressContainer');
+        const statusText = document.getElementById('statusText');
+        const counterText = document.getElementById('counterText');
+        
+        const step2Box = document.getElementById('step2Box');
+        const step3Box = document.getElementById('step3Box');
+        const step3Badge = document.getElementById('step3Badge');
+        
+        const rescueContainer = document.getElementById('rescueContainer');
+        const rescueScript = document.getElementById('rescueScript');
+
+        let globalUrls = []; 
+
+        async function pasteTitle() {
+            try {
+                const text = await navigator.clipboard.readText();
+                if (text) filenameInput.value = text.replace(/[\\/:*?"<>|]/g, '_');
+            } catch (err) { alert('請手動貼上'); }
+        }
+
+        baseUrlInput.addEventListener('input', () => {
+            const val = baseUrlInput.value.trim();
+            if (val.length === 0) {
+                 baseUrlMsg.innerHTML = '<span class="text-blue-400">* 若內容包含完整網址可略過。</span>';
+                 step2Box.classList.remove('highlight-next-step');
+            } else if (!val.startsWith('http')) {
+                baseUrlMsg.innerHTML = '<span class="text-orange-500">⚠️ 網址必須以 http 開頭。</span>';
+                step2Box.classList.remove('highlight-next-step');
+            } else {
+                baseUrlMsg.innerHTML = '<span class="text-green-600 font-bold">✅ 格式正確。</span>';
+                // 如果 Step 1 好了，Step 2 又是預設好的，直接導向 Step 3
+                step3Box.classList.add('highlight-next-step');
+            }
+            contentInput.dispatchEvent(new Event('input'));
+        });
+
+        uaInput.addEventListener('input', () => {
+            const val = uaInput.value.trim();
+            if(val) {
+                step2Box.classList.remove('highlight-next-step');
+                step3Box.classList.add('highlight-next-step');
+                contentInput.focus();
+            }
+        });
+
+        contentInput.addEventListener('input', () => {
+            const text = contentInput.value.trim();
+            if(text.length > 0) step3Box.classList.remove('highlight-next-step');
+            if (!text) { linkCountText.innerText = '等待輸入...'; return; }
+
+            const result = parseUrls(text, baseUrlInput.value.trim());
+            globalUrls = result.urls; 
+
+            if (result.urls.length > 0) {
+                let typeInfo = result.hasRelative ? '相對路徑' : '絕對路徑';
+                if (result.hasRelative && !result.validBase) {
+                    typeInfo += ' <span class="text-red-500 font-bold">(缺少步驟 1 網址!)</span>';
+                }
+                linkCountText.innerHTML = `<span class="text-purple-600 font-bold">📄 ${result.urls.length} 個片段</span> (${typeInfo})`;
+            } else {
+                linkCountText.innerHTML = '<span class="text-red-500">⚠️ 找不到 .vtt / .webvtt</span>';
+            }
+        });
+
+        function clearInput() {
+            filenameInput.value = '';
+            contentInput.value = '';
+            baseUrlInput.value = ''; 
+            // 清空時不重設預設 UA
+            baseUrlMsg.innerHTML = '<span class="text-blue-400">* 若內容包含完整網址可略過。</span>';
+            linkCountText.innerText = '等待輸入...';
+            step2Box.classList.remove('highlight-next-step');
+            step3Box.classList.remove('highlight-next-step');
+            rescueContainer.classList.add('hidden'); 
+        }
+
+        function log(msg, type = 'info') {
+            const time = new Date().toLocaleTimeString('en-US', { hour12: false });
+            let color = 'text-green-400';
+            if (type === 'error') color = 'text-red-400';
+            if (type === 'warn') color = 'text-yellow-400';
+            if(logBox.innerHTML.includes('系統準備就緒')) logBox.innerHTML = '';
+            logBox.innerHTML += `<div class="${color} mb-1 pl-1 border-l-2 ${type==='error'?'border-red-500':(type==='warn'?'border-yellow-500':'border-green-500')}"><span class="opacity-50 select-none">[${time}]</span> ${msg}</div>`;
+            logBox.scrollTop = logBox.scrollHeight;
+        }
+
+        function parseUrls(content, baseUrl) {
+            const urls = [];
+            let hasRelative = false;
+            let validBase = false;
+            let baseObj = null;
+
+            if (baseUrl && baseUrl.startsWith('http') && !baseUrl.includes('.key')) {
+                try { baseObj = new URL(baseUrl); validBase = true; } catch(e) {}
+            }
+
+            const absoluteRegex = /https?:\/\/[^\s"']+\.(?:vtt|webvtt)[^\s"']*/gi;
+            const absoluteMatches = content.match(absoluteRegex) || [];
+            
+            if (absoluteMatches.length > 0) {
+                return { urls: absoluteMatches, hasRelative: false, validBase: true };
+            }
+
+            const lines = content.split(/\r?\n/);
+            const lineRegex = /^(?!#).*\.(?:vtt|webvtt)(?:$|\?)/i;
+
+            for (let line of lines) {
+                line = line.trim();
+                if (!line) continue;
+                if (lineRegex.test(line)) {
+                    if (line.startsWith('http')) {
+                        urls.push(line);
+                    } else {
+                        hasRelative = true;
+                        if (baseObj) {
+                            try { urls.push(new URL(line, baseObj).href); } catch (e) {}
+                        } else {
+                            urls.push(line); 
+                        }
+                    }
+                }
+            }
+            return { urls, hasRelative, validBase };
+        }
+
+        async function processInputAndStart() {
+            const content = contentInput.value.trim();
+            const baseUrl = baseUrlInput.value.trim();
+
+            if (!content) { alert("請至少完成第三步 (貼上內容)！"); return; }
+            rescueContainer.classList.add('hidden'); 
+
+            logBox.innerHTML = '';
+            startBtn.disabled = true;
+            progressContainer.classList.remove('hidden');
+            progressBar.style.width = '0%';
+            progressBar.classList.remove('bg-green-500', 'bg-red-500');
+            progressBar.classList.add('bg-blue-500');
+
+            const result = parseUrls(content, baseUrl);
+            globalUrls = result.urls;
+
+            if (result.urls.length === 0) {
+                log("❌ 找不到 .vtt 連結。", 'error');
+                startBtn.disabled = false;
+                return;
+            }
+
+            if (result.hasRelative && !result.validBase) {
+                log("❌ 錯誤：這是相對路徑，請填寫「第一步」的網址。", 'error');
+                alert("缺少步驟 1 的網址！");
+                startBtn.disabled = false;
+                return;
+            }
+            
+            log(`🚀 發現 ${result.urls.length} 個片段，嘗試下載...`);
+            
+            const success = await startBatchDownload(result.urls);
+            
+            if (!success) {
+                generateRescueScript(result.urls);
+            }
+            startBtn.disabled = false;
+        }
+
+        async function startBatchDownload(urls) {
+            let finalContent = "";
+            let successCount = 0;
+            let failCount = 0;
+
+            const testLimit = Math.min(urls.length, 3);
+            let earlyFailure = false;
+
+            for (let i = 0; i < urls.length; i++) {
+                const url = urls[i];
+                statusText.innerText = `下載中... (${i + 1}/${urls.length})`;
+                const percentage = Math.round(((i + 1) / urls.length) * 100);
+                counterText.innerText = `${percentage}%`;
+                progressBar.style.width = `${percentage}%`;
+
+                try {
+                    await new Promise(r => setTimeout(r, 50)); 
+                    const content = await fetchSegment(url);
+                    
+                    if (content) {
+                        if (i === 0) finalContent += content;
+                        else finalContent += cleanVttContent(content);
+                        if (i % 5 === 0) log(`✅ 進度 [${i+1}/${urls.length}]`);
+                        successCount++;
+                    } else {
+                        failCount++;
+                    }
+                } catch (e) {
+                    failCount++;
+                }
+                
+                if (i < testLimit && failCount === (i + 1)) {
+                    log("⛔ 偵測到瀏覽器被封鎖 (403 Forbidden)...", 'error');
+                    earlyFailure = true;
+                    break;
+                }
+            }
+            
+            if (!earlyFailure && successCount > 0 && failCount === 0) {
+                saveFile(finalContent);
+                log(`✨ 下載完成！(無需救援)`);
+                statusText.innerText = "完成";
+                progressBar.classList.replace('bg-blue-500', 'bg-green-500');
+                return true;
+            } else {
+                log("⚠️ 瀏覽器下載失敗，切換至救援模式...", 'warn');
+                statusText.innerText = "請使用下方指令";
+                progressBar.classList.replace('bg-blue-500', 'bg-amber-500');
+                return false; 
+            }
+        }
+
+        async function fetchSegment(url) {
+            try {
+                const response = await fetch(url, { referrerPolicy: 'no-referrer' });
+                if (!response.ok) return null;
+                return await response.text();
+            } catch (error) {
+                return null;
+            }
+        }
+
+        function generateRescueScript(urls) {
+            let fileName = filenameInput.value.trim().replace(/[\\/:*?"<>|]/g, '_');
+            if (!fileName) fileName = "video_subtitle";
+            if (!fileName.endsWith('.vtt')) fileName += ".vtt";
+
+            const uaVal = uaInput.value.trim();
+            const safeUA = uaVal ? uaVal : "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36";
+
+            let script = `# 請在 PowerShell 執行此腳本 (v5.2)\n`;
+            script += `$BaseDir = "$env:USERPROFILE\\Downloads"\n`;
+            script += `$FileName = "${fileName}"\n`;
+            script += `$BaseName = [System.IO.Path]::GetFileNameWithoutExtension($FileName)\n`;
+            script += `$Extension = [System.IO.Path]::GetExtension($FileName)\n`;
+            script += `$OutputPath = Join-Path $BaseDir $FileName\n\n`;
+            
+            script += `# 自動檢查同名檔案並累進編號\n`;
+            script += `$Counter = 1\n`;
+            script += `while (Test-Path $OutputPath) {\n`;
+            script += `    $NewName = "$BaseName ($Counter)$Extension"\n`;
+            script += `    $OutputPath = Join-Path $BaseDir $NewName\n`;
+            script += `    $Counter++\n`;
+            script += `}\n\n`;
+
+            script += `Write-Host "正在下載字幕到: $OutputPath" -ForegroundColor Cyan\n`;
+            
+            script += `$Headers = @{\n`;
+            script += `    "User-Agent" = "${safeUA.replace(/"/g, '`"')}"\n`;
+            script += `    "Referer" = "https://player.hotmart.com/"\n`;
+            script += `    "Origin" = "https://player.hotmart.com"\n`;
+            script += `}\n\n`;
+
+            script += `$TempFile = "$env:TEMP\\temp_vtt_segment.vtt"\n`;
+            script += `"" | Out-File -FilePath $OutputPath -Encoding utf8\n\n`; 
+            
+            script += `$Urls = @(\n`;
+            urls.forEach(u => {
+                script += `"${u}",\n`;
+            });
+            script = script.replace(/,\n$/, "\n");
+            script += `)\n\n`;
+            
+            script += `$i = 0\n`;
+            script += `foreach ($url in $Urls) {\n`;
+            script += `    try {\n`;
+            script += `        Invoke-RestMethod -Uri $url -Method Get -Headers $Headers -OutFile $TempFile\n`;
+            script += `        $content = Get-Content -Path $TempFile -Encoding UTF8 -Raw\n`;
+            
+            script += `        if ($i -gt 0) {\n`;
+            script += `            $content = $content -replace "^WEBVTT[\r\n]+", ""\n`;
+            script += `            $content = $content -replace "^X-TIMESTAMP-MAP.*[\r\n]+", ""\n`;
+            script += `            $content = $content.TrimStart()\n`;
+            script += `            $content = "\`n" + $content\n`; 
+            script += `        }\n`;
+
+            script += `        Add-Content -Path $OutputPath -Value $content -Encoding utf8\n`;
+            script += `        Write-Host "." -NoNewline -ForegroundColor Green\n`;
+            script += `    } catch {\n`;
+            script += `        Write-Host "X" -NoNewline -ForegroundColor Red\n`;
+            script += `    }\n`;
+            script += `    $i++\n`;
+            script += `}\n`;
+            
+            script += `if (Test-Path $TempFile) { Remove-Item $TempFile }\n`;
+            
+            script += `\n\nWrite-Host "\n✅ 下載完成！" -ForegroundColor Green\n`;
+            script += `Write-Host "檔案位置: $OutputPath" -ForegroundColor Gray\n`;
+
+            rescueScript.value = script;
+            rescueContainer.classList.remove('hidden'); 
+            setTimeout(() => {
+                rescueContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 100);
+            
+            log("🚨 安全阻擋偵測：已使用預設 User-Agent 生成繞過指令。", 'warn');
+        }
+
+        function copyRescueScript() {
+            rescueScript.select();
+            document.execCommand('copy');
+            alert('指令已複製！\n\n請開啟 PowerShell 貼上執行。');
+        }
+
+        function cleanVttContent(rawText) {
+            const lines = rawText.split('\n');
+            let output = "";
+            let headerPassed = false;
+            for (let line of lines) {
+                if (!headerPassed) {
+                    if (line.includes('-->')) {
+                        headerPassed = true;
+                        output += "\n" + line + "\n"; 
+                    }
+                } else {
+                    output += line + "\n";
+                }
+            }
+            return output;
+        }
+
+        function saveFile(content) {
+            let fileName = filenameInput.value.trim().replace(/[\\/:*?"<>|]/g, '_');
+            if (!fileName) fileName = "video_subtitle";
+            if (!fileName.endsWith('.vtt')) fileName += ".vtt";
+
+            const blob = new Blob([content], { type: 'text/vtt;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+</html>
